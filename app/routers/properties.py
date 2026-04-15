@@ -84,11 +84,10 @@ def _parse_captions(raw: Optional[str]) -> List[str]:
         return []
 
 
-# ─── CREATE: Multipart form + image uploads ───────────────────────────────────
-
+# Create multipart form + input upload
 @router.post("/", response_model=PropertyResponse, status_code=status.HTTP_201_CREATED)
 async def create_property(
-    # ── Required text fields ──────────────────────────────────────────────────
+    # Required text fields
     title: str = Form(...),
     description: str = Form(...),
     property_type: PropertyType = Form(...),
@@ -99,7 +98,7 @@ async def create_property(
     lga: str = Form(...),
     price: float = Form(...),
 
-    # ── Optional text fields ──────────────────────────────────────────────────
+    # Optional text fields
     landmark: Optional[str] = Form(None),
     bedrooms: Optional[int] = Form(None),
     bathrooms: Optional[int] = Form(None),
@@ -107,16 +106,15 @@ async def create_property(
     square_meters: Optional[float] = Form(None),
     plot_size: Optional[str] = Form(None),
 
-    # ── JSON-encoded string fields (serialised on the Flutter side) ───────────
-    features: Optional[str] = Form(None),             # JSON array of strings
-    image_captions: Optional[str] = Form(None),       # JSON array of caption strings
-    verification_document: str = Form(...),           # JSON object (single doc)
-    video_url: Optional[str] = Form(None),            # plain URL string (YouTube/Vimeo)
+    # Json encoded fields (arrays and objects)
+    features: Optional[str] = Form(None),             
+    image_captions: Optional[str] = Form(None),       
+    verification_document: str = Form(...),           
+    video_url: Optional[str] = Form(None),            
 
-    # ── Image files ───────────────────────────────────────────────────────────
+    # File uploads (images)
     images: List[UploadFile] = File(...),
 
-    # ── Auth / DB ─────────────────────────────────────────────────────────────
     db: Session = Depends(get_db),
     current_user: User = Depends(require_capability("create_listing")),
 ):
@@ -126,14 +124,14 @@ async def create_property(
     Videos are stored as external URLs only (YouTube / Vimeo).
     """
 
-    # ── Validate images ───────────────────────────────────────────────────────
+    # Validate Images
     if not images:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="At least one property image is required.",
         )
 
-    # ── Parse & validate ownership document ───────────────────────────────────
+    # Parse and validate ownership documents
     ownership_docs = _parse_verification_document(verification_document)
     if not ownership_docs:
         raise HTTPException(
@@ -141,12 +139,10 @@ async def create_property(
             detail="At least one ownership document is required.",
         )
 
-    # ── Parse optional JSON strings ───────────────────────────────────────────
     parsed_features = _parse_features(features)
     parsed_captions = _parse_captions(image_captions)
 
-    # ── Save uploaded image files to disk ─────────────────────────────────────
-    # Returns list of public URLs in the same order as the uploaded files
+    # Save images to disk
     try:
         image_urls = await save_property_images(images)
     except HTTPException:
@@ -157,7 +153,7 @@ async def create_property(
             detail=f"Failed to save images: {str(e)}",
         )
 
-    # ── Persist property ──────────────────────────────────────────────────────
+    # Create Property record
     property_obj = Property(
         title=title,
         description=description,
@@ -176,7 +172,6 @@ async def create_property(
         plot_size=plot_size,
         features=parsed_features,
         owner_id=current_user.id,
-        # Store documents as a list of dicts (JSON column)
         ownership_documents=[doc.model_dump() for doc in ownership_docs],
         main_image=image_urls[0] if image_urls else None,
         verification_status=PropertyVerificationStatus.PENDING_VERIFICATION,
@@ -184,9 +179,7 @@ async def create_property(
     )
 
     db.add(property_obj)
-    db.flush()  # get property_obj.id before adding children
-
-    # ── Add PropertyImage rows ────────────────────────────────────────────────
+    db.flush()   
     for idx, url in enumerate(image_urls):
         caption = parsed_captions[idx] if idx < len(parsed_captions) else None
         db.add(PropertyImage(
@@ -196,8 +189,6 @@ async def create_property(
             caption=caption or None,
             display_order=idx,
         ))
-
-    # ── Add PropertyVideo row (if a URL was provided) ─────────────────────────
     if video_url and video_url.strip():
         db.add(PropertyVideo(
             property_id=property_obj.id,
@@ -211,8 +202,6 @@ async def create_property(
 
     return property_obj
 
-
-# ─── UPDATE: also multipart (images re-uploaded on edit) ──────────────────────
 
 @router.put("/{property_id}", response_model=PropertyResponse)
 async def update_property(
@@ -240,7 +229,6 @@ async def update_property(
     verification_document: Optional[str] = Form(None),
     video_url: Optional[str] = Form(None),
 
-    # Images are optional on update — omit to keep existing images
     images: Optional[List[UploadFile]] = File(None),
 
     db: Session = Depends(get_db),
@@ -256,7 +244,7 @@ async def update_property(
     if prop.owner_id != current_user.id and not is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only update your own properties.")
 
-    # ── Basic fields ──────────────────────────────────────────────────────────
+    # Update fields
     prop.title = title
     prop.description = description
     prop.property_type = property_type
@@ -274,18 +262,15 @@ async def update_property(
     prop.plot_size = plot_size
     prop.features = _parse_features(features)
 
-    # ── Ownership documents ───────────────────────────────────────────────────
+    # Oweenership documents
     if verification_document:
         ownership_docs = _parse_verification_document(verification_document)
         prop.ownership_documents = [doc.model_dump() for doc in ownership_docs]
-        # Reset verification so admin re-reviews
         prop.verification_status = PropertyVerificationStatus.PENDING_VERIFICATION
         prop.status = PropertyStatus.PENDING
 
-    # ── Images (only replace if new files provided) ───────────────────────────
     real_images = [f for f in (images or []) if f and f.filename]
     if real_images:
-        # Delete old files from disk
         old_images = db.query(PropertyImage).filter(PropertyImage.property_id == property_id).all()
         for old in old_images:
             delete_property_image(old.image_url)
@@ -304,8 +289,6 @@ async def update_property(
                 caption=caption or None,
                 display_order=idx,
             ))
-
-    # ── Video ─────────────────────────────────────────────────────────────────
     if video_url is not None:
         db.query(PropertyVideo).filter(PropertyVideo.property_id == property_id).delete()
         if video_url.strip():
@@ -321,8 +304,7 @@ async def update_property(
     return prop
 
 
-# ─── LIST (public) ────────────────────────────────────────────────────────────
-
+# List Public
 @router.get("/", response_model=List[PropertyResponse])
 async def list_properties(
     db: Session = Depends(get_db),
@@ -426,8 +408,7 @@ async def list_properties(
     return properties
 
 
-# ─── ADMIN: list pending ──────────────────────────────────────────────────────
-
+# Admin List Pending
 @router.get("/admin/pending", response_model=List[PropertyResponse])
 async def list_pending_properties(
     db: Session = Depends(get_db),
@@ -449,8 +430,7 @@ async def list_pending_properties(
     return properties
 
 
-# ─── ADMIN: approve / reject ──────────────────────────────────────────────────
-
+# Admin Verify
 @router.post("/admin/{property_id}/verify", response_model=PropertyResponse)
 async def verify_property(
     property_id: UUID,
@@ -495,8 +475,7 @@ async def verify_property(
     return prop
 
 
-# ─── GET single property (public) ────────────────────────────────────────────
-
+# Detail Public
 @router.get("/{property_id}", response_model=PropertyResponse)
 async def get_property(
     property_id: UUID,
@@ -512,3 +491,28 @@ async def get_property(
     db.refresh(prop)
     _normalize_property(prop)
     return prop
+
+
+@router.get("/user", response_model=List[PropertyResponse])
+async def get_user_properties(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+):
+    """
+    Returns all properties belonging to the currently authenticated user.
+    Includes all statuses (pending, verified, rejected) so the user can
+    see their full listing history in their profile.
+    """
+    properties = (
+        db.query(Property)
+        .filter(Property.owner_id == current_user.id)
+        .order_by(Property.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    for p in properties:
+        _normalize_property(p)
+    return properties
