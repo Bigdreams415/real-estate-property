@@ -105,6 +105,8 @@ async def create_property(
     toilets: Optional[int] = Form(None),
     square_meters: Optional[float] = Form(None),
     plot_size: Optional[str] = Form(None),
+    total_units: Optional[int] = Form(None),
+    available_units: Optional[int] = Form(None),
 
     # Json encoded fields (arrays and objects)
     features: Optional[str] = Form(None),             
@@ -170,6 +172,8 @@ async def create_property(
         toilets=toilets,
         square_meters=square_meters,
         plot_size=plot_size,
+        total_units=total_units,
+        available_units=available_units,
         features=parsed_features,
         owner_id=current_user.id,
         ownership_documents=[doc.model_dump() for doc in ownership_docs],
@@ -221,6 +225,8 @@ async def update_property(
     bedrooms: Optional[int] = Form(None),
     bathrooms: Optional[int] = Form(None),
     toilets: Optional[int] = Form(None),
+    total_units: Optional[int] = Form(None),
+    available_units: Optional[int] = Form(None),
     square_meters: Optional[float] = Form(None),
     plot_size: Optional[str] = Form(None),
 
@@ -258,6 +264,8 @@ async def update_property(
     prop.bedrooms = bedrooms
     prop.bathrooms = bathrooms
     prop.toilets = toilets
+    prop.total_units = total_units
+    prop.available_units = available_units
     prop.square_meters = square_meters
     prop.plot_size = plot_size
     prop.features = _parse_features(features)

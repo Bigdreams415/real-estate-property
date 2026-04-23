@@ -95,6 +95,8 @@ class PropertyBase(BaseModel):
     toilets: Optional[int] = None
     square_meters: Optional[float] = None
     plot_size: Optional[str] = None
+    total_units: Optional[int] = None      
+    available_units: Optional[int] = None  
     features: Optional[List[str]] = []
 
 

@@ -62,6 +62,8 @@ class Property(BaseModel):
     bedrooms = Column(Integer, nullable=True)
     bathrooms = Column(Integer, nullable=True)
     toilets = Column(Integer, nullable=True)
+    total_units = Column(Integer, nullable=True)      
+    available_units = Column(Integer, nullable=True) 
     square_meters = Column(Float, nullable=True)
     plot_size = Column(String(50), nullable=True)
     
