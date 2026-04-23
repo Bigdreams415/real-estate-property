@@ -5,8 +5,7 @@ from datetime import datetime
 from app.models.property import PropertyType, ListingType, PropertyStatus, PropertyVerificationStatus
 
 
-# ─── Image Schemas ────────────────────────────────────────────────────────────
-
+# Image Schemas 
 class PropertyImageBase(BaseModel):
     image_url: str          # stored path / CDN URL after upload
     is_main: bool = False
@@ -27,7 +26,7 @@ class PropertyImageResponse(PropertyImageBase):
         from_attributes = True
 
 
-# ─── Video Schemas ────────────────────────────────────────────────────────────
+# Video Schemas 
 # Videos stay as external URLs (YouTube / Vimeo) — no file upload
 
 class PropertyVideoBase(BaseModel):
@@ -78,7 +77,7 @@ class OwnershipDocument(BaseModel):
         return v.strip()
 
 
-# ─── Property Base ────────────────────────────────────────────────────────────
+# Property Base
 
 class PropertyBase(BaseModel):
     title: str
@@ -99,7 +98,7 @@ class PropertyBase(BaseModel):
     features: Optional[List[str]] = []
 
 
-# ─── Create Schema (used internally after parsing multipart form) ─────────────
+# Create Schema (used internally after parsing multipart form) 
 
 class PropertyCreate(PropertyBase):
     # Parsed from the JSON string sent in the multipart 'verification_document' field
@@ -108,7 +107,7 @@ class PropertyCreate(PropertyBase):
     videos: List[PropertyVideoCreate] = []
 
 
-# ─── Response Schema ──────────────────────────────────────────────────────────
+# Response Schema 
 
 class PropertyResponse(PropertyBase):
     id: UUID
@@ -120,6 +119,8 @@ class PropertyResponse(PropertyBase):
     verified_by: Optional[UUID] = None
     verified_at: Optional[datetime] = None
     owner_id: UUID
+    owner_phone: Optional[str] = None    
+    owner_name: Optional[str] = None   
     view_count: int
     is_featured: bool
     main_image: Optional[str] = None
@@ -132,8 +133,7 @@ class PropertyResponse(PropertyBase):
         from_attributes = True
 
 
-# ─── Admin Verification Action ────────────────────────────────────────────────
-
+# Admin Verification Action
 class PropertyVerificationAction(BaseModel):
     action: str   # "approve" or "reject"
     notes: Optional[str] = None

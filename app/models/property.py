@@ -92,6 +92,14 @@ class Property(BaseModel):
     view_count = Column(Integer, default=0)
     is_featured = Column(Boolean, default=False)
 
+    @property
+    def owner_phone(self) -> str | None:
+        return self.owner.phone_number if self.owner else None
+
+    @property
+    def owner_name(self) -> str | None:
+        return self.owner.full_name if self.owner else None
+
 class PropertyImage(BaseModel):
     __tablename__ = "property_images"
     
