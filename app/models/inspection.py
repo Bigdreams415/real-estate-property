@@ -2,6 +2,7 @@ from sqlalchemy import Column, String, Text, Enum, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
+import builtins
 import enum
 
 class InspectionStatus(str, enum.Enum):
@@ -22,7 +23,12 @@ class Inspection(BaseModel):
     confirmed_date = Column(DateTime, nullable=True)
 
     status = Column(
-        Enum(InspectionStatus),
+        Enum(
+            InspectionStatus,
+            name="inspectionstatus",
+            values_callable=lambda cls: [member.value for member in cls],
+            create_type=False,
+        ),
         default=InspectionStatus.PENDING,
         nullable=False,
     )
@@ -34,18 +40,18 @@ class Inspection(BaseModel):
     requester = relationship("User", foreign_keys=[requester_id])
     owner = relationship("User", foreign_keys=[owner_id])
 
-    @property
+    @builtins.property
     def requester_name(self):
         return self.requester.full_name if self.requester else None
 
-    @property
+    @builtins.property
     def owner_name(self):
         return self.owner.full_name if self.owner else None
 
-    @property
+    @builtins.property
     def property_title(self):
         return self.property.title if self.property else None
 
-    @property
+    @builtins.property
     def property_image(self):
         return self.property.main_image if self.property else None
