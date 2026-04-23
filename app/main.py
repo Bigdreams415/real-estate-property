@@ -5,7 +5,7 @@ from app.routers import auth, properties, verification
 from fastapi.staticfiles import StaticFiles
 import os
 from app.routers import admin_auth
-
+from app.routers import auth, properties, verification, inspections  
 app = FastAPI(
     title="Nigeria Property App",
     description="Direct property listing platform",
@@ -31,6 +31,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(properties.router, prefix="/api/v1")
 app.include_router(verification.router, prefix="/api/v1")
 app.include_router(admin_auth.router, prefix="/api/v1/admin")
+app.include_router(inspections.router, prefix="/api/v1")
 
 @app.get("/")
 def root():
