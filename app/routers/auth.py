@@ -1,8 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.core.database import get_db
 from app.models.user import User
+from app.models.property import Property
+from app.models.favorite import Favorite
 from app.schemas.user import UserCreate, UserLogin, TokenResponse, UserResponse
 from app.utils.auth import get_password_hash, verify_password, create_access_token
 from app.api.deps import get_current_active_user
@@ -128,3 +131,56 @@ async def get_current_user_info(
     current_user: User = Depends(get_current_active_user)
 ):
     return current_user
+
+
+@router.get("/me/stats")
+async def get_user_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Returns aggregate stats for the authenticated user's profile."""
+    total_listings = (
+        db.query(func.count(Property.id))
+        .filter(Property.owner_id == current_user.id)
+        .scalar()
+    )
+
+    total_views = (
+        db.query(func.coalesce(func.sum(Property.view_count), 0))
+        .filter(Property.owner_id == current_user.id)
+        .scalar()
+    )
+
+    favorites_count = (
+        db.query(func.count(Favorite.id))
+        .filter(Favorite.user_id == current_user.id)
+        .scalar()
+    )
+
+    return {
+        "total_listings": total_listings,
+        "total_views": total_views,
+        "favorites_count": favorites_count,
+    }
+
+
+@router.delete("/me")
+async def delete_account(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Permanently delete the authenticated user's account and all associated data."""
+    # Delete related records first (cascade manually for safety)
+    from app.models.favorite import Favorite
+    from app.models.inspection import Inspection
+
+    db.query(Favorite).filter(Favorite.user_id == current_user.id).delete()
+    db.query(Inspection).filter(Inspection.requester_id == current_user.id).delete()
+    db.query(Inspection).filter(Inspection.owner_id == current_user.id).delete()
+
+    # Delete user properties and their images/videos (cascade in model handles children)
+    db.query(Property).filter(Property.owner_id == current_user.id).delete()
+
+    db.delete(current_user)
+    db.commit()
+    return {"message": "Account deleted successfully"}
