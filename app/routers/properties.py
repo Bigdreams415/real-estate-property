@@ -483,24 +483,6 @@ async def verify_property(
     return prop
 
 
-# Detail Public
-@router.get("/{property_id}", response_model=PropertyResponse)
-async def get_property(
-    property_id: UUID,
-    db: Session = Depends(get_db),
-):
-    """Get a single property. Public — no auth required. Increments view count."""
-    prop = db.query(Property).filter(Property.id == property_id).first()
-    if not prop:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found.")
-
-    prop.view_count += 1
-    db.commit()
-    db.refresh(prop)
-    _normalize_property(prop)
-    return prop
-
-
 @router.get("/user", response_model=List[PropertyResponse])
 async def get_user_properties(
     db: Session = Depends(get_db),
@@ -524,3 +506,21 @@ async def get_user_properties(
     for p in properties:
         _normalize_property(p)
     return properties
+
+
+# Detail Public
+@router.get("/{property_id}", response_model=PropertyResponse)
+async def get_property(
+    property_id: UUID,
+    db: Session = Depends(get_db),
+):
+    """Get a single property. Public — no auth required. Increments view count."""
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Property not found.")
+
+    prop.view_count += 1
+    db.commit()
+    db.refresh(prop)
+    _normalize_property(prop)
+    return prop
