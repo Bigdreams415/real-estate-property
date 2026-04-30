@@ -17,4 +17,8 @@ class Settings(BaseSettings):
     APP_NAME: str = os.getenv("APP_NAME", "Property Management API")
     DEBUG: bool = os.getenv("DEBUG", "True") == "True"
 
+    # Paystack
+    PAYSTACK_SECRET_KEY: str = ""  
+    APP_BASE_URL: str = "http://localhost:8000"
+
 settings = Settings()

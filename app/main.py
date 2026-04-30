@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from app.routers import auth, properties, verification, favorites, inspections, admin_auth
+from app.routers import auth, properties, verification, inspections, payments
 from fastapi.staticfiles import StaticFiles
 import os  
 app = FastAPI(
@@ -31,6 +32,7 @@ app.include_router(verification.router, prefix="/api/v1")
 app.include_router(admin_auth.router, prefix="/api/v1/admin")
 app.include_router(inspections.router, prefix="/api/v1")
 app.include_router(favorites.router, prefix="/api/v1")
+app.include_router(payments.router, prefix="/api/v1")
 
 @app.get("/")
 def root():
