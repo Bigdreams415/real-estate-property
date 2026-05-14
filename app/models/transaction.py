@@ -2,6 +2,7 @@ from sqlalchemy import Column, String, Float, Text, Enum, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
+import builtins
 import enum
 
 class TransactionStatus(str, enum.Enum):
@@ -43,14 +44,14 @@ class Transaction(BaseModel):
     buyer = relationship("User", foreign_keys=[buyer_id])
     owner = relationship("User", foreign_keys=[owner_id])
 
-    @property
+    @builtins.property
     def property_title(self):
         return self.property.title if self.property else None
 
-    @property
+    @builtins.property
     def buyer_name(self):
         return self.buyer.full_name if self.buyer else None
 
-    @property
+    @builtins.property
     def owner_name(self):
         return self.owner.full_name if self.owner else None

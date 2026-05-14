@@ -1,8 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-from app.routers import auth, properties, verification, favorites, inspections, admin_auth
-from app.routers import auth, properties, verification, inspections, payments
+from app.routers import auth, properties, verification, favorites, inspections, admin_auth, payments
 from fastapi.staticfiles import StaticFiles
 import os  
 app = FastAPI(

@@ -6,3 +6,4 @@ alembic/
 __pycache__/
 media/
 *.log
+.claude/
