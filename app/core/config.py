@@ -18,7 +18,12 @@ class Settings(BaseSettings):
     DEBUG: bool = os.getenv("DEBUG", "True") == "True"
 
     # Paystack
-    PAYSTACK_SECRET_KEY: str = ""  
+    PAYSTACK_SECRET_KEY: str = ""
     APP_BASE_URL: str = "http://localhost:8000"
+
+    # Google OAuth — client IDs from Firebase/Google Cloud console
+    GOOGLE_CLIENT_ID_ANDROID: str = os.getenv("GOOGLE_CLIENT_ID_ANDROID", "")
+    GOOGLE_CLIENT_ID_IOS: str = os.getenv("GOOGLE_CLIENT_ID_IOS", "")
+    GOOGLE_CLIENT_ID_WEB: str = os.getenv("GOOGLE_CLIENT_ID_WEB", "")
 
 settings = Settings()
