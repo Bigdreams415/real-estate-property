@@ -26,4 +26,8 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID_IOS: str = os.getenv("GOOGLE_CLIENT_ID_IOS", "")
     GOOGLE_CLIENT_ID_WEB: str = os.getenv("GOOGLE_CLIENT_ID_WEB", "")
 
+    # BulkSMS Nigeria
+    BULKSMS_NIGERIA_API_TOKEN: str = os.getenv("BULKSMS_NIGERIA_API_TOKEN", "")
+    BULKSMS_NIGERIA_SENDER_ID: str = os.getenv("BULKSMS_NIGERIA_SENDER_ID", "RentalGuide")
+
 settings = Settings()
