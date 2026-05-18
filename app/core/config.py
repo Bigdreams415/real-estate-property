@@ -30,4 +30,7 @@ class Settings(BaseSettings):
     BULKSMS_NIGERIA_API_TOKEN: str = os.getenv("BULKSMS_NIGERIA_API_TOKEN", "")
     BULKSMS_NIGERIA_SENDER_ID: str = os.getenv("BULKSMS_NIGERIA_SENDER_ID", "RentalGuide")
 
+    # Firebase
+    FIREBASE_SERVICE_ACCOUNT_PATH: str = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "firebase-service-account.json")
+
 settings = Settings()
