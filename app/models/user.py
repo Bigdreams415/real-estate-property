@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Text, JSON, DateTime
+from sqlalchemy import Column, String, Boolean, Text, JSON
 from sqlalchemy.orm import relationship
 from app.models.base import BaseModel
 
@@ -25,9 +25,6 @@ class User(BaseModel):
     auth_provider = Column(String(20), nullable=False, default="local")
     google_sub = Column(String(255), unique=True, index=True, nullable=True)
     is_profile_complete = Column(Boolean, nullable=False, default=False)   
-    
-    phone_verification_code = Column(String(6), nullable=True)
-    phone_verification_expiry = Column(DateTime, nullable=True)
     
     means_of_identification = Column(String(255), nullable=True)
     identification_number = Column(String(50), nullable=True)

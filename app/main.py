@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-from app.routers import auth, properties, verification, favorites, inspections, admin_auth, payments, otp
+from app.routers import auth, properties, favorites, inspections, admin_auth, payments, otp
 from fastapi.staticfiles import StaticFiles
 import os  
 app = FastAPI(
@@ -27,7 +27,6 @@ app.add_middleware(
 # Include routers
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(properties.router, prefix="/api/v1")
-app.include_router(verification.router, prefix="/api/v1")
 app.include_router(admin_auth.router, prefix="/api/v1/admin")
 app.include_router(inspections.router, prefix="/api/v1")
 app.include_router(favorites.router, prefix="/api/v1")
@@ -37,7 +36,7 @@ app.include_router(otp.router, prefix="/api/v1")
 @app.get("/")
 def root():
     return {
-        "message": "🏠 Nigeria Property App API",
+        "message": "Nigeria Property App API",
         "version": "1.0.0",
         "status": "active",
         "documentation": "/docs"
