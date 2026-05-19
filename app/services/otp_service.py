@@ -9,6 +9,7 @@ DAILY_LIMIT = 10
 
 # Uppercase letters + digits, excluding visually ambiguous chars (O, I, 0, 1)
 _OTP_CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+_OTP_DIGITS = "23456789"
 
 
 class OTPService:
@@ -16,7 +17,10 @@ class OTPService:
 
     @staticmethod
     def generate_code() -> str:
-        return "".join(secrets.choice(_OTP_CHARSET) for _ in range(6))
+        code = [secrets.choice(_OTP_CHARSET) for _ in range(6)]
+        # Guarantee at least one digit by overwriting a random position
+        code[secrets.randbelow(6)] = secrets.choice(_OTP_DIGITS)
+        return "".join(code)
 
     @staticmethod
     def _check_rate_limit(db: Session, phone: str) -> None:

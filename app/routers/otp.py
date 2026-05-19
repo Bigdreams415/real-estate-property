@@ -50,7 +50,7 @@ async def send_otp(
     otp = OTPService.create_otp(db, current_user.phone_number, check_rate_limit=False)
 
     sms_client = get_sms_client()
-    message = f"RentalGuide: {otp.otp_code} — use this to complete your login. Expires in 10 mins."
+    message = f"RentalGuide: {otp.otp_code} - use this to complete your login. Expires in 10 mins."
 
     result = await sms_client.send_sms(to=current_user.phone_number, message=message)
     sms_sent = bool(result)
@@ -80,7 +80,7 @@ async def resend_otp(
     otp = OTPService.create_otp(db, current_user.phone_number, check_rate_limit=True)
 
     sms_client = get_sms_client()
-    message = f"RentalGuide: {otp.otp_code} — use this to complete your login. Expires in 10 mins."
+    message = f"RentalGuide: {otp.otp_code} - use this to complete your login. Expires in 10 mins."
 
     result = await sms_client.send_sms(to=current_user.phone_number, message=message)
     sms_sent = bool(result)
