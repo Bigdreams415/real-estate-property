@@ -1,4 +1,4 @@
-import random
+import secrets
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
@@ -7,13 +7,16 @@ from app.models.otp import OTPVerification
 RESEND_COOLDOWN_SECONDS = 60
 DAILY_LIMIT = 10
 
+# Uppercase letters + digits, excluding visually ambiguous chars (O, I, 0, 1)
+_OTP_CHARSET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
 
 class OTPService:
     OTP_EXPIRY_MINUTES = 10
 
     @staticmethod
     def generate_code() -> str:
-        return str(random.randint(100000, 999999))
+        return "".join(secrets.choice(_OTP_CHARSET) for _ in range(6))
 
     @staticmethod
     def _check_rate_limit(db: Session, phone: str) -> None:
@@ -79,7 +82,7 @@ class OTPService:
             db.query(OTPVerification)
             .filter(
                 OTPVerification.phone == phone,
-                OTPVerification.otp_code == code.strip(),
+                OTPVerification.otp_code == code.strip().upper(),
                 OTPVerification.is_used == False,
                 OTPVerification.expires_at > datetime.utcnow(),
             )
