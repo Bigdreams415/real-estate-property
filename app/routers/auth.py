@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -9,9 +9,11 @@ from app.models.favorite import Favorite
 from app.schemas.user import (
     UserCreate, UserLogin, TokenResponse, UserResponse,
     GoogleAuthRequest, CompleteProfileRequest,
+    ChangePasswordRequest, ChangePhoneRequest, LoginAlertsRequest,
 )
 from app.utils.auth import get_password_hash, verify_password, create_access_token
 from app.api.deps import get_current_active_user
+from app.services.fcm_service import fcm_service
 from datetime import timedelta
 from app.core.config import settings
 from google.oauth2 import id_token as google_id_token
@@ -70,22 +72,26 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     )
 
 @router.post("/login", response_model=TokenResponse)
-async def login(user_data: UserLogin, db: Session = Depends(get_db)):
+async def login(
+    user_data: UserLogin,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     user = db.query(User).filter(User.email == user_data.email).first()
-    
+
     if not user or not verify_password(user_data.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Account is deactivated"
         )
-    
+
     access_token = create_access_token(
         data={
             "sub": str(user.id),
@@ -93,7 +99,16 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
             "verification_level": user.verification_level
         }
     )
-    
+
+    if user.login_alerts_enabled:
+        background_tasks.add_task(
+            fcm_service.send_to_user,
+            db, user.id,
+            "New sign-in to RentalGuide",
+            "Your account was just signed in to. If this wasn't you, change your password immediately.",
+            {"screen": "privacy"},
+        )
+
     return TokenResponse(
         access_token=access_token,
         user=UserResponse.model_validate(user)
@@ -172,7 +187,7 @@ async def get_user_stats(
 
 
 @router.post("/google", response_model=TokenResponse)
-async def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db)):
+async def google_auth(request: GoogleAuthRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Sign in or register with a Google ID token from the mobile app."""
     # Verify token with Google (no audience — we check manually to support Android/iOS/Web)
     try:
@@ -239,6 +254,16 @@ async def google_auth(request: GoogleAuthRequest, db: Session = Depends(get_db))
             "verification_level": user.verification_level,
         }
     )
+
+    if user.login_alerts_enabled:
+        background_tasks.add_task(
+            fcm_service.send_to_user,
+            db, user.id,
+            "New sign-in to RentalGuide",
+            "Your account was just signed in to. If this wasn't you, change your password immediately.",
+            {"screen": "privacy"},
+        )
+
     return TokenResponse(access_token=access_token, user=UserResponse.model_validate(user))
 
 
@@ -292,3 +317,69 @@ async def delete_account(
     db.delete(current_user)
     db.commit()
     return {"message": "Account deleted successfully"}
+
+
+@router.post("/me/change-password", status_code=status.HTTP_200_OK)
+async def change_password(
+    data: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Change password for local-account users. Not available for Google sign-in accounts."""
+    if current_user.password_hash is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password change is not available for Google accounts.",
+        )
+    if not verify_password(data.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        )
+    current_user.password_hash = get_password_hash(data.new_password)
+    db.commit()
+    return {"message": "Password changed successfully."}
+
+
+@router.patch("/me/phone", response_model=TokenResponse)
+async def change_phone(
+    data: ChangePhoneRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Change the user's phone number and reset verification to unverified."""
+    existing = db.query(User).filter(
+        User.phone_number == data.phone_number,
+        User.id != current_user.id,
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phone number already registered to another account.",
+        )
+    current_user.phone_number = data.phone_number
+    current_user.verification_level = "unverified"
+    db.commit()
+    db.refresh(current_user)
+
+    access_token = create_access_token(
+        data={
+            "sub": str(current_user.id),
+            "capabilities": current_user.capabilities,
+            "verification_level": current_user.verification_level,
+        }
+    )
+    return TokenResponse(access_token=access_token, user=UserResponse.model_validate(current_user))
+
+
+@router.patch("/me/login-alerts", response_model=UserResponse)
+async def set_login_alerts(
+    data: LoginAlertsRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Toggle login-alert push notifications on or off."""
+    current_user.login_alerts_enabled = data.enabled
+    db.commit()
+    db.refresh(current_user)
+    return UserResponse.model_validate(current_user)

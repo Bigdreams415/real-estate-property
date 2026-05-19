@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from app.core.database import get_db
@@ -14,6 +14,7 @@ router = APIRouter(prefix="/otp", tags=["OTP"])
 class OTPSendResponse(BaseModel):
     message: str
     expires_in_minutes: int = 10
+    sms_sent: bool = True
 
 
 class OTPVerifyRequest(BaseModel):
@@ -29,7 +30,6 @@ class OTPVerifyResponse(BaseModel):
 
 @router.post("/send", response_model=OTPSendResponse)
 async def send_otp(
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -52,14 +52,14 @@ async def send_otp(
     sms_client = get_sms_client()
     message = f"RentalGuide: {otp.otp_code} — use this to complete your login. Expires in 10 mins."
 
-    background_tasks.add_task(sms_client.send_sms, to=current_user.phone_number, message=message)
+    result = await sms_client.send_sms(to=current_user.phone_number, message=message)
+    sms_sent = bool(result)
 
-    return OTPSendResponse(message="OTP sent to your registered phone number.")
+    return OTPSendResponse(message="OTP sent to your registered phone number.", sms_sent=sms_sent)
 
 
 @router.post("/resend", response_model=OTPSendResponse)
 async def resend_otp(
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
@@ -82,9 +82,10 @@ async def resend_otp(
     sms_client = get_sms_client()
     message = f"RentalGuide: {otp.otp_code} — use this to complete your login. Expires in 10 mins."
 
-    background_tasks.add_task(sms_client.send_sms, to=current_user.phone_number, message=message)
+    result = await sms_client.send_sms(to=current_user.phone_number, message=message)
+    sms_sent = bool(result)
 
-    return OTPSendResponse(message="New OTP sent to your registered phone number.")
+    return OTPSendResponse(message="New OTP sent to your registered phone number.", sms_sent=sms_sent)
 
 
 @router.post("/verify", response_model=OTPVerifyResponse)

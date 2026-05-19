@@ -14,6 +14,7 @@ class User(BaseModel):
     verification_level = Column(String(20), default="unverified")
 
     is_active = Column(Boolean, default=True)
+    login_alerts_enabled = Column(Boolean, default=True, nullable=False)
 
     profile_image = Column(String(255), nullable=True)
     address = Column(Text, nullable=True)

@@ -58,6 +58,21 @@ class CompleteProfileRequest(BaseModel):
     def validate_phone(cls, v):
         return validate_nigerian_phone(v)
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=8)
+
+class ChangePhoneRequest(BaseModel):
+    phone_number: str
+
+    @field_validator('phone_number')
+    @classmethod
+    def validate_phone(cls, v):
+        return validate_nigerian_phone(v)
+
+class LoginAlertsRequest(BaseModel):
+    enabled: bool
+
 class UserResponse(UserBase):
     id: UUID
     capabilities: List[str]
@@ -65,6 +80,7 @@ class UserResponse(UserBase):
     is_active: bool
     auth_provider: str
     is_profile_complete: bool
+    login_alerts_enabled: bool = True
     profile_image: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None

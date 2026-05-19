@@ -23,7 +23,7 @@ def get_sms_client() -> "BulkSMSNigeriaService":
 
 class BulkSMSNigeriaService:
     BASE_URL = "https://www.bulksmsnigeria.com/api/v2"
-    TIMEOUT = 30
+    TIMEOUT = 10
 
     def __init__(self, api_token: str, sender_id: str):
         self.api_token = api_token.strip()
@@ -51,18 +51,26 @@ class BulkSMSNigeriaService:
 
         logger.info(f"Sending OTP SMS to {clean}")
 
-        async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
-            response = await client.post(
-                f"{self.BASE_URL}/sms", headers=self.headers, json=payload
-            )
+        try:
+            async with httpx.AsyncClient(timeout=self.TIMEOUT) as client:
+                response = await client.post(
+                    f"{self.BASE_URL}/sms", headers=self.headers, json=payload
+                )
+        except httpx.ConnectError as e:
+            logger.error(f"SMS gateway unreachable (network/DNS error): {e}")
+            return {}
+        except httpx.TimeoutException as e:
+            logger.error(f"SMS gateway timed out: {e}")
+            return {}
+        except httpx.HTTPError as e:
+            logger.error(f"SMS HTTP error: {e}")
+            return {}
 
         logger.debug(f"BulkSMS response {response.status_code}: {response.text[:300]}")
 
         if response.status_code != 200:
-            raise HTTPException(
-                status_code=500,
-                detail=f"SMS gateway error: {response.text[:200]}",
-            )
+            logger.error(f"SMS gateway error {response.status_code}: {response.text[:200]}")
+            return {}
 
         data = response.json()
         if data.get("status") == "error":
@@ -70,7 +78,8 @@ class BulkSMSNigeriaService:
                 data.get("error", {}).get("message")
                 or data.get("message", "Unknown SMS error")
             )
-            raise HTTPException(status_code=500, detail=f"SMS failed: {error_msg}")
+            logger.error(f"SMS failed: {error_msg}")
+            return {}
 
         logger.info(f"SMS sent – message_id: {data.get('data', {}).get('message_id')}")
         return data
