@@ -9,7 +9,7 @@ from app.models.inspection import Inspection, InspectionStatus
 from app.models.property import Property
 from app.models.user import User
 from app.schemas.inspection import InspectionRequest, InspectionReschedule, InspectionResponse
-from app.api.deps import get_current_active_user
+from app.api.deps import get_verified_user
 
 router = APIRouter(prefix="/inspections", tags=["Inspections"])
 
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/inspections", tags=["Inspections"])
 async def request_inspection(
     payload: InspectionRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Requester schedules an inspection for a property."""
 
@@ -70,7 +70,7 @@ async def request_inspection(
 @router.get("/mine", response_model=List[InspectionResponse])
 async def get_my_inspections(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
     status_filter: str = Query(None),
 ):
     """Get all inspections where current user is requester or owner."""
@@ -98,7 +98,7 @@ async def get_my_inspections(
 async def confirm_inspection(
     inspection_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Owner confirms the inspection at the requested date."""
 
@@ -127,7 +127,7 @@ async def reschedule_inspection(
     inspection_id: UUID,
     payload: InspectionReschedule,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Owner proposes a new date instead of confirming the original."""
 
@@ -156,7 +156,7 @@ async def reschedule_inspection(
 async def cancel_inspection(
     inspection_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Either party can cancel an inspection."""
 
@@ -186,7 +186,7 @@ async def cancel_inspection(
 async def complete_inspection(
     inspection_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Either party marks the inspection as completed after it happens."""
 

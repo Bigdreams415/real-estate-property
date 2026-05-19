@@ -12,7 +12,7 @@ from app.schemas.favorite import (
     FavoriteListResponse,
     FavoriteActionResponse,
 )
-from app.api.deps import get_current_active_user
+from app.api.deps import get_verified_user
 
 router = APIRouter(prefix="/favorites", tags=["Favorites"])
 
@@ -41,7 +41,7 @@ async def list_favorites(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """List the current user's favorited properties with property details."""
     total = (
@@ -68,7 +68,7 @@ async def list_favorites(
 @router.get("/count")
 async def get_favorites_count(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Returns the number of properties the current user has favorited."""
     count = (
@@ -83,7 +83,7 @@ async def get_favorites_count(
 async def add_favorite(
     property_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Add a property to the current user's favorites."""
     prop = db.query(Property).filter(Property.id == property_id).first()
@@ -117,7 +117,7 @@ async def add_favorite(
 async def remove_favorite(
     property_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Remove a property from the current user's favorites."""
     fav = (
@@ -146,7 +146,7 @@ async def remove_favorite(
 async def check_favorite(
     property_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Check if a property is favorited by the current user."""
     fav = (

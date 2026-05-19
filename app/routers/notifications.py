@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.models.user import User
 from app.models.device_token import DeviceToken
-from app.api.deps import get_current_active_user
+from app.api.deps import get_verified_user
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
@@ -22,7 +22,7 @@ class RemoveTokenRequest(BaseModel):
 def register_token(
     body: RegisterTokenRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Register or refresh an FCM device token for the current user."""
     if body.platform not in ("android", "ios"):
@@ -54,7 +54,7 @@ def register_token(
 def remove_token(
     body: RemoveTokenRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Remove an FCM token (call this on logout so the device stops receiving notifications)."""
     db.query(DeviceToken).filter(

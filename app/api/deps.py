@@ -23,15 +23,15 @@ async def get_current_user(
 ) -> Optional[User]:
     if not token:
         return None
-    
+
     payload = decode_token(token)
     if not payload:
         return None
-    
+
     user_id = payload.get("sub")
     if not user_id:
         return None
-    
+
     user = db.query(User).filter(User.id == UUID(user_id)).first()
     return user
 
@@ -51,9 +51,28 @@ async def get_current_active_user(
         )
     return current_user
 
+def require_verification_level(min_level: str):
+    async def verification_checker(
+        current_user: User = Depends(get_current_active_user)
+    ):
+        user_level = VERIFICATION_LEVELS.get(current_user.verification_level, 0)
+        required_level = VERIFICATION_LEVELS.get(min_level, 0)
+
+        if user_level < required_level:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Phone verification required. Please verify your phone number to continue.",
+            )
+        return current_user
+    return verification_checker
+
+# Default dependency for all protected (non-onboarding) routes.
+# Onboarding allowlist (/auth/me, /auth/me/complete-profile, /otp/*) stays on get_current_active_user.
+get_verified_user = require_verification_level("phone_verified")
+
 def require_capability(required_capability: str):
     async def capability_checker(
-        current_user: User = Depends(get_current_active_user)
+        current_user: User = Depends(get_verified_user)
     ):
         if required_capability not in current_user.capabilities:
             raise HTTPException(
@@ -65,7 +84,7 @@ def require_capability(required_capability: str):
 
 def require_any_capability(required_capabilities: List[str]):
     async def capability_checker(
-        current_user: User = Depends(get_current_active_user)
+        current_user: User = Depends(get_verified_user)
     ):
         user_caps = set(current_user.capabilities)
         if not any(cap in user_caps for cap in required_capabilities):
@@ -75,18 +94,3 @@ def require_any_capability(required_capabilities: List[str]):
             )
         return current_user
     return capability_checker
-
-def require_verification_level(min_level: str):
-    async def verification_checker(
-        current_user: User = Depends(get_current_active_user)
-    ):
-        user_level = VERIFICATION_LEVELS.get(current_user.verification_level, 0)
-        required_level = VERIFICATION_LEVELS.get(min_level, 0)
-        
-        if user_level < required_level:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Verification level too low. Required: {min_level}"
-            )
-        return current_user
-    return verification_checker

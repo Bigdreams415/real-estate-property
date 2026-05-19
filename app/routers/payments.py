@@ -14,7 +14,7 @@ from app.models.transaction import Transaction, TransactionStatus
 from app.models.property import Property
 from app.models.user import User
 from app.schemas.transaction import InitiatePaymentRequest, TransactionResponse
-from app.api.deps import get_current_active_user, require_capability
+from app.api.deps import get_verified_user, require_capability
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
@@ -31,7 +31,7 @@ def _kobo(amount: float) -> int:
 async def initiate_payment(
     payload: InitiatePaymentRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Initialize a Paystack transaction for a property."""
 
@@ -155,7 +155,7 @@ async def paystack_webhook(request: Request, db: Session = Depends(get_db)):
 async def verify_payment(
     reference: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Flutter calls this after returning from Paystack to confirm payment."""
 
@@ -195,7 +195,7 @@ async def verify_payment(
 @router.get("/mine", response_model=List[TransactionResponse])
 async def get_my_transactions(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
 ):
     """Get all transactions where current user is buyer or owner."""
     transactions = db.query(Transaction).filter(

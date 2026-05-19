@@ -13,7 +13,7 @@ from app.models.user import User
 from app.schemas.property import (
     PropertyResponse, PropertyVerificationAction, OwnershipDocument
 )
-from app.api.deps import get_current_user, get_current_active_user, require_capability
+from app.api.deps import get_current_user, get_verified_user, require_capability
 from app.utils.file_storage import save_property_images, delete_property_image
 from typing import List, Optional
 from uuid import UUID
@@ -486,7 +486,7 @@ async def verify_property(
 @router.get("/user", response_model=List[PropertyResponse])
 async def get_user_properties(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
+    current_user: User = Depends(get_verified_user),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
 ):
