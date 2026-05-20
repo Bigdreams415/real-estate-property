@@ -2,7 +2,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Form, UploadFile, File
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_, case, Integer, literal, func, String
+from sqlalchemy import or_, and_, case, Integer, literal, func, String, text
 from datetime import datetime
 from app.core.database import get_db
 from app.models.property import (
@@ -15,13 +15,14 @@ from app.schemas.property import (
 )
 from app.api.deps import get_current_user, get_verified_user, require_capability
 from app.utils.file_storage import save_property_images, delete_property_image
+from app.services.geocoding_service import geocode_address
 from typing import List, Optional
 from uuid import UUID
 
 router = APIRouter(prefix="/properties", tags=["Properties"])
 
 
-# ─── Helpers ──────────────────────────────────────────────────────────────────
+# Helpers
 
 def _normalize_property(prop: Property):
     """Ensure JSON/list fields are not None so response validation passes."""
@@ -108,11 +109,15 @@ async def create_property(
     total_units: Optional[int] = Form(None),
     available_units: Optional[int] = Form(None),
 
+    # Coordinates (optional — auto-geocoded from address if omitted)
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
+
     # Json encoded fields (arrays and objects)
-    features: Optional[str] = Form(None),             
-    image_captions: Optional[str] = Form(None),       
-    verification_document: str = Form(...),           
-    video_url: Optional[str] = Form(None),            
+    features: Optional[str] = Form(None),
+    image_captions: Optional[str] = Form(None),
+    verification_document: str = Form(...),
+    video_url: Optional[str] = Form(None),
 
     # File uploads (images)
     images: List[UploadFile] = File(...),
@@ -155,6 +160,11 @@ async def create_property(
             detail=f"Failed to save images: {str(e)}",
         )
 
+    # Auto-geocode if coordinates not provided
+    geo_lat, geo_lng = latitude, longitude
+    if geo_lat is None or geo_lng is None:
+        geo_lat, geo_lng = await geocode_address(address, city, state, lga)
+
     # Create Property record
     property_obj = Property(
         title=title,
@@ -166,6 +176,8 @@ async def create_property(
         state=state,
         lga=lga,
         landmark=landmark,
+        latitude=geo_lat,
+        longitude=geo_lng,
         price=price,
         bedrooms=bedrooms,
         bathrooms=bathrooms,
@@ -222,6 +234,8 @@ async def update_property(
     price: float = Form(...),
 
     landmark: Optional[str] = Form(None),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
     bedrooms: Optional[int] = Form(None),
     bathrooms: Optional[int] = Form(None),
     toilets: Optional[int] = Form(None),
@@ -250,6 +264,14 @@ async def update_property(
     if prop.owner_id != current_user.id and not is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only update your own properties.")
 
+    # Detect if location fields changed so we know whether to re-geocode
+    location_changed = (
+        prop.address != address
+        or prop.city != city
+        or prop.state != state
+        or prop.lga != lga
+    )
+
     # Update fields
     prop.title = title
     prop.description = description
@@ -269,6 +291,15 @@ async def update_property(
     prop.square_meters = square_meters
     prop.plot_size = plot_size
     prop.features = _parse_features(features)
+
+    # Apply coordinates: use supplied values, re-geocode if location changed or coords missing
+    if latitude is not None and longitude is not None:
+        prop.latitude = latitude
+        prop.longitude = longitude
+    elif location_changed or prop.latitude is None:
+        geo_lat, geo_lng = await geocode_address(address, city, state, lga)
+        prop.latitude = geo_lat
+        prop.longitude = geo_lng
 
     # Oweenership documents
     if verification_document:
@@ -322,12 +353,17 @@ async def list_properties(
     search: Optional[str] = Query(None, min_length=2),
     state: Optional[str] = Query(None),
     city: Optional[str] = Query(None),
+    lga: Optional[str] = Query(None),
     property_type: Optional[PropertyType] = Query(None),
     listing_type: Optional[ListingType] = Query(None),
     min_price: Optional[float] = Query(None),
     max_price: Optional[float] = Query(None),
     bedrooms: Optional[int] = Query(None),
-    sort_by: Optional[str] = Query("newest", pattern="^(newest|oldest|price_low|price_high|relevance|most_viewed)$"),
+    bathrooms: Optional[int] = Query(None),
+    near_lat: Optional[float] = Query(None),
+    near_lng: Optional[float] = Query(None),
+    radius_km: float = Query(25.0, ge=1.0, le=200.0),
+    sort_by: Optional[str] = Query("newest", pattern="^(newest|oldest|price_low|price_high|relevance|most_viewed|distance)$"),
     show_pending: bool = Query(False),
 ):
     """List verified properties with filtering and sorting."""
@@ -385,6 +421,8 @@ async def list_properties(
         query = query.filter(Property.state.ilike(f"%{state}%"))
     if city:
         query = query.filter(Property.city.ilike(f"%{city}%"))
+    if lga:
+        query = query.filter(Property.lga.ilike(f"%{lga}%"))
     if property_type:
         query = query.filter(Property.property_type == property_type)
     if listing_type:
@@ -395,9 +433,35 @@ async def list_properties(
         query = query.filter(Property.price <= max_price)
     if bedrooms is not None and bedrooms > 0:
         query = query.filter(Property.bedrooms >= bedrooms)
+    if bathrooms is not None and bathrooms > 0:
+        query = query.filter(Property.bathrooms >= bathrooms)
+
+    # Nearby / geo-distance filter using haversine (plain SQL, no PostGIS required)
+    has_nearby = near_lat is not None and near_lng is not None
+    if has_nearby:
+        query = query.filter(Property.latitude.isnot(None), Property.longitude.isnot(None))
+
+        def _haversine_expr():
+            return 6371 * func.acos(
+                func.least(1.0, func.greatest(-1.0,
+                    func.cos(func.radians(near_lat))
+                    * func.cos(func.radians(Property.latitude))
+                    * func.cos(func.radians(Property.longitude) - func.radians(near_lng))
+                    + func.sin(func.radians(near_lat))
+                    * func.sin(func.radians(Property.latitude))
+                ))
+            )
+
+        distance_expr = _haversine_expr().label("distance_km")
+        query = query.add_columns(distance_expr)
+        query = query.filter(_haversine_expr() <= radius_km)
+    else:
+        query = query.add_columns(literal(0.0).label("distance_km"))
 
     if search and sort_by == "relevance":
-        query = query.order_by(literal("relevance").desc(), Property.created_at.desc())
+        query = query.order_by(text("relevance DESC"), Property.created_at.desc())
+    elif has_nearby and sort_by == "distance":
+        query = query.order_by(text("distance_km ASC"))
     elif sort_by == "oldest":
         query = query.order_by(Property.created_at.asc())
     elif sort_by == "price_low":
@@ -410,9 +474,12 @@ async def list_properties(
         query = query.order_by(Property.created_at.desc())
 
     results = query.offset(skip).limit(limit).all()
-    properties = [r[0] for r in results]
-    for p in properties:
-        _normalize_property(p)
+    # Unpack: tuples are (Property, relevance, distance_km) or (Property, distance_km) depending on search
+    properties = []
+    for r in results:
+        prop = r[0]
+        _normalize_property(prop)
+        properties.append(prop)
     return properties
 
 

@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 from app.models.transaction import TransactionStatus
@@ -26,6 +26,10 @@ class TransactionResponse(BaseModel):
     released_at: Optional[datetime] = None
     notes: Optional[str] = None
     property_title: Optional[str] = None
+    property_image: Optional[str] = None
+    property_city: Optional[str] = None
+    property_state: Optional[str] = None
+    escrow_seconds_remaining: Optional[int] = None
     buyer_name: Optional[str] = None
     owner_name: Optional[str] = None
     created_at: datetime
@@ -33,3 +37,8 @@ class TransactionResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class TransactionListResponse(BaseModel):
+    items: List[TransactionResponse]
+    total: int

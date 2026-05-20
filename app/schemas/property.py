@@ -89,6 +89,8 @@ class PropertyBase(BaseModel):
     state: str
     lga: str
     landmark: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     price: float
     bedrooms: Optional[int] = None
     bathrooms: Optional[int] = None

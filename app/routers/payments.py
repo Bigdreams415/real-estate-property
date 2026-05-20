@@ -4,16 +4,16 @@ import uuid
 import httpx
 from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_
-from typing import List
+from typing import List, Optional, Literal
 from uuid import UUID
 from app.core.database import get_db
 from app.core.config import settings
 from app.models.transaction import Transaction, TransactionStatus
 from app.models.property import Property
 from app.models.user import User
-from app.schemas.transaction import InitiatePaymentRequest, TransactionResponse
+from app.schemas.transaction import InitiatePaymentRequest, TransactionResponse, TransactionListResponse
 from app.api.deps import get_verified_user, require_capability
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
@@ -192,19 +192,92 @@ async def verify_payment(
     return transaction
 
 
-@router.get("/mine", response_model=List[TransactionResponse])
+@router.get("/mine", response_model=TransactionListResponse)
 async def get_my_transactions(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=50),
+    role: Optional[Literal["buyer", "owner"]] = Query(None),
+    status: Optional[TransactionStatus] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_verified_user),
 ):
-    """Get all transactions where current user is buyer or owner."""
-    transactions = db.query(Transaction).filter(
-        or_(
+    """Get paginated transactions for the current user, optionally filtered by role and status."""
+    if role == "buyer":
+        base_filter = Transaction.buyer_id == current_user.id
+    elif role == "owner":
+        base_filter = Transaction.owner_id == current_user.id
+    else:
+        base_filter = or_(
             Transaction.buyer_id == current_user.id,
             Transaction.owner_id == current_user.id,
         )
-    ).order_by(Transaction.created_at.desc()).all()
-    return transactions
+
+    query = (
+        db.query(Transaction)
+        .options(joinedload(Transaction.property))
+        .filter(base_filter)
+    )
+    if status is not None:
+        query = query.filter(Transaction.status == status)
+
+    total = query.count()
+    transactions = (
+        query.order_by(Transaction.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+    return TransactionListResponse(items=transactions, total=total)
+
+
+@router.get("/{transaction_id}", response_model=TransactionResponse)
+async def get_transaction(
+    transaction_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_verified_user),
+):
+    """Get a single transaction. Only accessible by the buyer or owner of that transaction."""
+    transaction = (
+        db.query(Transaction)
+        .options(joinedload(Transaction.property))
+        .filter(Transaction.id == transaction_id)
+        .first()
+    )
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found.")
+    if str(current_user.id) not in (str(transaction.buyer_id), str(transaction.owner_id)):
+        raise HTTPException(status_code=403, detail="Access denied.")
+    return transaction
+
+
+@router.post("/{transaction_id}/release-by-buyer", response_model=TransactionResponse)
+async def release_by_buyer(
+    transaction_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_verified_user),
+):
+    """Buyer confirms receipt and releases escrowed funds early."""
+    transaction = (
+        db.query(Transaction)
+        .options(joinedload(Transaction.property))
+        .filter(Transaction.id == transaction_id)
+        .first()
+    )
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found.")
+    if str(transaction.buyer_id) != str(current_user.id):
+        raise HTTPException(status_code=403, detail="Only the buyer can release funds.")
+    if transaction.status != TransactionStatus.IN_ESCROW:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Transaction is '{transaction.status.value}', not in escrow.",
+        )
+
+    transaction.status = TransactionStatus.RELEASED
+    transaction.released_at = datetime.utcnow()
+    db.commit()
+    db.refresh(transaction)
+    return transaction
 
 
 @router.post("/{transaction_id}/release", response_model=TransactionResponse)

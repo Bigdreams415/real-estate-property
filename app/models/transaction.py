@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Float, Text, Enum, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
@@ -55,3 +56,24 @@ class Transaction(BaseModel):
     @builtins.property
     def owner_name(self):
         return self.owner.full_name if self.owner else None
+
+    @builtins.property
+    def property_image(self):
+        return self.property.main_image if self.property else None
+
+    @builtins.property
+    def property_city(self):
+        return self.property.city if self.property else None
+
+    @builtins.property
+    def property_state(self):
+        return self.property.state if self.property else None
+
+    @builtins.property
+    def escrow_seconds_remaining(self):
+        if self.release_at is None:
+            return None
+        now = datetime.now(timezone.utc)
+        release = self.release_at.replace(tzinfo=timezone.utc) if self.release_at.tzinfo is None else self.release_at
+        delta = (release - now).total_seconds()
+        return int(delta) if delta > 0 else None
