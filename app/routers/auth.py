@@ -10,6 +10,7 @@ from app.schemas.user import (
     UserCreate, UserLogin, TokenResponse, UserResponse,
     GoogleAuthRequest, CompleteProfileRequest,
     ChangePasswordRequest, ChangePhoneRequest, LoginAlertsRequest,
+    NotificationPreferencesRequest,
 )
 from app.utils.auth import get_password_hash, verify_password, create_access_token
 from app.api.deps import get_current_active_user
@@ -380,6 +381,21 @@ async def set_login_alerts(
 ):
     """Toggle login-alert push notifications on or off."""
     current_user.login_alerts_enabled = data.enabled
+    db.commit()
+    db.refresh(current_user)
+    return UserResponse.model_validate(current_user)
+
+
+@router.patch("/me/notification-preferences", response_model=UserResponse)
+async def set_notification_preferences(
+    data: NotificationPreferencesRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Toggle per-category push/email notification preferences."""
+    fields = data.model_dump(exclude_unset=True)
+    for key, value in fields.items():
+        setattr(current_user, f"notif_{key}", value)
     db.commit()
     db.refresh(current_user)
     return UserResponse.model_validate(current_user)

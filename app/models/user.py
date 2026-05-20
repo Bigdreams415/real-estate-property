@@ -16,6 +16,13 @@ class User(BaseModel):
     is_active = Column(Boolean, default=True)
     login_alerts_enabled = Column(Boolean, default=True, nullable=False)
 
+    notif_push_enabled        = Column(Boolean, default=True,  nullable=False)
+    notif_support_enabled     = Column(Boolean, default=True,  nullable=False)
+    notif_inspection_enabled  = Column(Boolean, default=True,  nullable=False)
+    notif_payment_enabled     = Column(Boolean, default=True,  nullable=False)
+    notif_promotional_enabled = Column(Boolean, default=False, nullable=False)
+    notif_email_enabled       = Column(Boolean, default=True,  nullable=False)
+
     profile_image = Column(String(255), nullable=True)
     address = Column(Text, nullable=True)
     city = Column(String(100), nullable=True)

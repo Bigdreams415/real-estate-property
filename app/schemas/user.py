@@ -73,6 +73,14 @@ class ChangePhoneRequest(BaseModel):
 class LoginAlertsRequest(BaseModel):
     enabled: bool
 
+class NotificationPreferencesRequest(BaseModel):
+    push_enabled: Optional[bool] = None
+    support_enabled: Optional[bool] = None
+    inspection_enabled: Optional[bool] = None
+    payment_enabled: Optional[bool] = None
+    promotional_enabled: Optional[bool] = None
+    email_enabled: Optional[bool] = None
+
 class UserResponse(UserBase):
     id: UUID
     capabilities: List[str]
@@ -81,6 +89,12 @@ class UserResponse(UserBase):
     auth_provider: str
     is_profile_complete: bool
     login_alerts_enabled: bool = True
+    notif_push_enabled: bool = True
+    notif_support_enabled: bool = True
+    notif_inspection_enabled: bool = True
+    notif_payment_enabled: bool = True
+    notif_promotional_enabled: bool = False
+    notif_email_enabled: bool = True
     profile_image: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None

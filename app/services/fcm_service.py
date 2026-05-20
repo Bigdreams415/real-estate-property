@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.device_token import DeviceToken
+from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +34,19 @@ class FCMService:
         title: str,
         body: str,
         data: Optional[dict] = None,
+        category: Optional[str] = None,
     ) -> int:
         """Send a notification to all registered devices for a user. Returns number of successful sends."""
+        if category is not None:
+            user = db.query(User).filter(User.id == user_id).first()
+            if user is None:
+                return 0
+            if not user.notif_push_enabled:
+                return 0
+            pref_attr = f"notif_{category}_enabled"
+            if hasattr(user, pref_attr) and not getattr(user, pref_attr):
+                return 0
+
         tokens = (
             db.query(DeviceToken.token)
             .filter(DeviceToken.user_id == user_id)

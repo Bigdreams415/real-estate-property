@@ -82,6 +82,15 @@ def require_capability(required_capability: str):
         return current_user
     return capability_checker
 
+async def get_admin_user(current_user: User = Depends(get_current_active_user)) -> User:
+    if "admin_access" not in (current_user.capabilities or []):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user
+
+
 def require_any_capability(required_capabilities: List[str]):
     async def capability_checker(
         current_user: User = Depends(get_verified_user)
